@@ -1,4 +1,3 @@
-# Laravel-Docker
 ## Laravel, PHP7.4, Nginx, MySQL 5.7, Redis Docker Container
 A complete Laravel, PHP Development environment that is very similar to production environment.
 
