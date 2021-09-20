@@ -1,0 +1,106 @@
+version: '3.6'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/images/app/Dockerfile.dev
+    volumes:
+      - type: bind
+        source: ./app
+        target: /var/www/app
+    expose:
+      - "9000"
+    networks:
+      - lempdev
+  nginx:
+    build:
+      context: .
+      dockerfile: ./docker/images/web/Dockerfile.dev
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: bind
+        source: ./app
+        target: /var/www/app
+      - type: bind
+        source: ./docker/data/web
+        target: /var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - lempdev
+  mysql:
+    build:
+      context: .
+      dockerfile: ./docker/images/database/Dockerfile.dev
+    restart: always
+    volumes:
+      - type: bind
+        source: ./docker/data/mysql
+        target: /var/lib/mysql
+    environment:
+      MYSQL_DATABASE: app
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: secret
+    ports:
+      - "3306:3306"
+    networks:
+      - lempdev
+  redis:
+    build:
+      context: .
+      dockerfile: ./docker/images/redis/Dockerfile.dev
+    ports:
+      - "6379:6379"
+    expose:
+      - "6379"
+    volumes:
+      - type: bind
+        source: ./docker/data/redis
+        target: /data
+    networks:
+      - lempdev
+  queue:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./docker/images/app/Dockerfile.dev
+    command: ["/usr/local/bin/php", "/var/www/app/artisan", "queue:work"]
+    volumes:
+      - type: bind
+        source: ./app
+        target: /var/www/app
+    healthcheck:
+      test: [ "CMD-SHELL", "ps -ef || exit 1" ]
+      interval: 10s
+      timeout: 30s
+      retries: 3
+    depends_on:
+      - app
+      - redis
+    networks:
+      - lempdev
+  scheduler:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./docker/images/scheduler/Dockerfile.dev
+    depends_on:
+      - app
+      - mysql
+    command: /usr/sbin/crond -f -l 8 && sh /var/www/execute-cron.sh
+    volumes:
+      - type: bind
+        source: ./app
+        target: /var/www/app
+    healthcheck:
+      test: ["CMD-SHELL", "ps -ef || exit 1"]
+      interval: 10s
+      timeout: 30s
+      retries: 3
+    networks:
+      - lempdev
+networks:
+  lempdev:
